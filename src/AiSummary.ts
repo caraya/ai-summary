@@ -6,7 +6,7 @@ declare global {
   interface Window {
     Summarizer: {
       availability(): Promise<string>;
-      create(options: { type: string; length: string }): Promise<any>;
+      create(options: { type: string; length: string; lang?: string }): Promise<any>;
     };
   }
 }
@@ -29,7 +29,7 @@ class AiSummary extends HTMLElement {
 
   connectedCallback() {
     this.render();
-    this.summarizeContent();
+    this.shadowRoot!.getElementById('generate-btn')?.addEventListener('click', () => this.summarizeContent());
   }
 
   render() {
@@ -61,23 +61,51 @@ class AiSummary extends HTMLElement {
         .error {
           color: var(--red-6);
         }
+        #generate-btn {
+          background-color: var(--stone-2);
+          border: none;
+          border-radius: var(--radius-2);
+          padding: var(--size-2) var(--size-4);
+          font-family: var(--font-sans);
+          font-weight: var(--font-weight-6);
+          cursor: pointer;
+          transition: background-color 0.2s ease;
+          margin-bottom: var(--size-3);
+        }
+        #generate-btn:hover {
+          background-color: var(--stone-3);
+        }
+        #generate-btn:disabled {
+          cursor: not-allowed;
+          opacity: 0.6;
+        }
       </style>
       <div class="summary-card">
         <h3 class="summary-title">TL;DR</h3>
-        <p id="status" class="summary-content">Analyzing content...</p>
+        <button id="generate-btn">Generate Summary</button>
+        <p id="status" class="summary-content"></p>
         <p id="output" class="summary-content"></p>
       </div>
     `;
   }
 
   async summarizeContent() {
+    const generateBtn = this.shadowRoot!.getElementById('generate-btn') as HTMLButtonElement;
     const statusElement = this.shadowRoot!.getElementById('status') as HTMLParagraphElement;
     const outputElement = this.shadowRoot!.getElementById('output') as HTMLParagraphElement;
     const selector = this.getAttribute('selector');
+    
+    const summaryLang = 'en';
+
+    generateBtn.disabled = true;
+    generateBtn.style.display = 'none';
+    statusElement.textContent = 'Analyzing content...';
 
     if (!selector) {
       statusElement.textContent = 'Error: "selector" attribute is missing.';
       statusElement.classList.add('error');
+      generateBtn.disabled = false;
+      generateBtn.style.display = 'block';
       return;
     }
 
@@ -85,6 +113,8 @@ class AiSummary extends HTMLElement {
     if (!sourceElement) {
       statusElement.textContent = `Error: Could not find element with selector: ${selector}`;
       statusElement.classList.add('error');
+      generateBtn.disabled = false;
+      generateBtn.style.display = 'block';
       return;
     }
 
@@ -93,8 +123,9 @@ class AiSummary extends HTMLElement {
     // --- Native API Path ---
     if ('Summarizer' in window && await window.Summarizer.availability() !== 'unavailable') {
       try {
-          statusElement.textContent = 'Generating with built-in AI...';
-          const summarizer = await window.Summarizer.create({ type: 'tldr', length: 'medium' });
+          const summaryLang = 'en';
+          statusElement.textContent = `Generating with built-in AI...`;
+          const summarizer = await window.Summarizer.create({ type: 'tldr', length: 'long', lang: summaryLang });
           const summary = await summarizer.summarize(textToSummarize);
           outputElement.textContent = summary;
           statusElement.textContent = '';
@@ -110,13 +141,13 @@ class AiSummary extends HTMLElement {
     else {
       try {
         statusElement.textContent = 'Loading fallback model (this may take a moment)...';
+
         const pipeline = await loadTransformers();
-        // The "Goldilocks" compromise model
         const summarizer = await pipeline('summarization', 'Xenova/distilbart-cnn-12-6');
         
         const output = await summarizer(textToSummarize, {
-          min_length: 75,
-          max_length: 200,
+          min_length: 40,
+          max_length: 160,
           num_beams: 5,
           repetition_penalty: 1.2
         });
