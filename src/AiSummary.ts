@@ -6,7 +6,7 @@ declare global {
   interface Window {
     Summarizer: {
       availability(): Promise<string>;
-      create(options: { type: string; length: string; lang?: string }): Promise<any>;
+      create(options: { type: string; length: string; outputLanguage?: string }): Promise<any>;
     };
   }
 }
@@ -94,8 +94,6 @@ class AiSummary extends HTMLElement {
     const statusElement = this.shadowRoot!.getElementById('status') as HTMLParagraphElement;
     const outputElement = this.shadowRoot!.getElementById('output') as HTMLParagraphElement;
     const selector = this.getAttribute('selector');
-    
-    const summaryLang = 'en';
 
     generateBtn.disabled = true;
     generateBtn.style.display = 'none';
@@ -123,9 +121,9 @@ class AiSummary extends HTMLElement {
     // --- Native API Path ---
     if ('Summarizer' in window && await window.Summarizer.availability() !== 'unavailable') {
       try {
-          const summaryLang = 'en';
           statusElement.textContent = `Generating with built-in AI...`;
-          const summarizer = await window.Summarizer.create({ type: 'tldr', length: 'long', lang: summaryLang });
+          // Using `outputLanguage` as per the latest spec, even if Chrome's implementation hasn't caught up.
+          const summarizer = await window.Summarizer.create({ type: 'tldr', length: 'long', outputLanguage: 'en' });
           const summary = await summarizer.summarize(textToSummarize);
           outputElement.textContent = summary;
           statusElement.textContent = '';
